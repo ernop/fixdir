@@ -1,0 +1,35 @@
+$def with (res)
+
+<head>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+<style type="text/css">
+
+.row{
+    display:inline-block;
+    float:left;
+    clear:both;
+    border:1px solid blue;
+    -webkit-border-radius:25px;
+    padding:10px;
+    margin:4px;
+    }
+.button{
+    border:2px dotted blue;
+    margin:2px;
+    display:inline-block;
+    -webkit-border-radius:4px;
+    padding:5px;
+    cursor:pointer;
+    -webkit-text-select:none;
+    }
+    
+img {
+    max-height:300px;
+}
+</style>
+</head>
+<body>
+
+$for rr in res:
+    <div class="row">$:rr</div>
+</body>
