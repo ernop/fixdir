@@ -24,7 +24,6 @@ class Target:
     def __init__(self, name, dest):
         self.name=name
         self.dest=dest
-        
 
 TARGETS={}
 for a,b in target_defs.items():
@@ -118,13 +117,18 @@ def mkmvbutton(target, fp):
                 url:"/move",
                 data:data,
                 success:function(dat){
-                    $("#%s").parent().slideUp();
+                    if (dat['res']!='success'){
+                        $("#%s").parent().append($('<div class="existed">Fail: '+dat['res']+'</div>')).find('.busy').remove();
+                    }
+                    else{
+                        $("#%s").parent().slideUp();
+                    }
                     }
                 });
             });
         }
     )()
-    </script>'''%(target.dest, fp, idd, idd, idd)
+    </script>'''%(target.dest, fp, idd, idd, idd, idd)
     return res
 
 def image(fp):
@@ -194,11 +198,11 @@ class images:
 class delete:
     def GET(self):
         pts=urlparse.parse_qs(web.ctx.query)
-        fp=pts['?fp'][0]
+        fp=pts['?fp'][0].encode('raw_unicode_escape')
         print 'would remove %s'%fp
         print fp
         if os.path.exists(fp):
-            log('removed',fp)
+            log('removed'+fp)
             os.remove(fp)
 
 def log(arggs):
@@ -214,33 +218,12 @@ def log(arggs):
     except:
         import ipdb;ipdb.set_trace();print 'ipdb!'
         print 'x'
-
-def unescape(text):
-    def fixup(m):
-        text = m.group(0)
-        if text[:2] == "&#":
-            # character reference
-            try:
-                if text[:3] == "&#x":
-                    return unichr(int(text[3:-1], 16))
-                else:
-                    return unichr(int(text[2:-1]))
-            except ValueError:
-                pass
-        else:
-            # named entity
-            try:
-                text = unichr(htmlentitydefs.name2codepoint[text[1:-1]])
-            except KeyError:
-                pass
-        return text # leave as is
-    return re.sub("&#?\w+;", fixup, text)
     
 class move:
     def GET(self):
         pts=urlparse.parse_qs(web.ctx.query)
-        fp=pts['fp'][0]
-        target=pts['?target'][0]
+        fp=pts['fp'][0].encode('raw_unicode_escape')
+        target=pts['?target'][0].encode('raw_unicode_escape')
         web.header("Content-Type", 'text/json')
         print fp, target, pts
         fn=os.path.split(fp)[-1]
@@ -251,7 +234,7 @@ class move:
         else:
             try:
                 shutil.move(fp, target)
-                res['res']='moved it.'
+                res['res']='success'
                 log('moved'+fp+'to'+target)
             except:
                 import traceback;traceback.print_exc()
@@ -268,7 +251,7 @@ class index:
     def GET(self):
         d='/media/I/dl'
         files=os.listdir(d)
-        res=[HEAD]
+        res=[]
         did=0
         for f in files:
             if did>100:break
@@ -282,10 +265,13 @@ class index:
                 continue
             did+=1
             res.append(th)
-        res.append(TAIL)
         okres=[]
+        #~ import ipdb;ipdb.set_trace();print 'ipdb!'
         for r in res:
-            okres.append(r.decode('utf8'))
+            ok=r.decode('utf8')
+            if not ok:
+                continue
+            okres.append(ok)
         return render.index(okres)
 
 app=web.application(urls, globals(), autoreload=True)
