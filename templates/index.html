@@ -2,6 +2,7 @@ $def with (res)
 
 <head>
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+<script src="fixdl.js"></script>
 <style type="text/css">
 
 .row{
@@ -22,14 +23,23 @@ $def with (res)
     cursor:pointer;
     -webkit-text-select:none;
     }
-    
 img {
     max-height:300px;
+    }
+.fixed{
+    position:fixed;
+    right:50px;
+    top:50px;
+    border:6px dashed blue;
+    display:inline-block;
 }
 </style>
 </head>
 <body>
-
 $for rr in res:
     <div class="row">$:rr</div>
+<div class="fixed">
+<!--<div id="clearlocks">clear locks</div>-->
+
+</div>
 </body>
