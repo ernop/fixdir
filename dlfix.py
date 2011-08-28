@@ -2,11 +2,25 @@ import os, uuid, urlparse, simplejson, shutil, re
 
 import web
 
+def log(arggs):
+    try:
+        if arggs:
+            if len(arggs)>1:
+                res=arggs[0]%args[1:]
+            else:
+                res=arggs[0]
+        moment=datetime.datetime.now()
+        open('log.txt','a').write(moment+': '+res+'\n')
+    except:
+        import ipdb;ipdb.set_trace();print 'ipdb!'
+        print 'x'
+        
 render = web.template.render('templates/')
 urls=('/','index',
     '/images/(.*)', 'images', #this is where the image folder is located....
     '/move','move',
     '/delete','delete',
+    '/up','up',
 )
 
 target_defs={'mp3albums':'/media/I/mp3albums',
@@ -45,7 +59,7 @@ def has_movie(fp):
         ext=f.split('.')[-1]
         if ext in MOVIE_EXTENSIONS:
             return True
-
+        
 def getkind(fp):
     fp=fp.lower()
     if os.path.isdir(fp):
@@ -84,12 +98,35 @@ def buttons(kind, fp):
             buttons.append(mkmvbutton(target, fp))
     return ''.join(buttons)
 
+def mkupbutton(fp):
+    idd=str(uuid.uuid4()).replace('-','_')
+    res='<div class="button" id="%s">%s</div>'%(idd, 'up')
+    fpjs=fp.replace("\'","\\\'")
+    res+='''<script>
+    (function(){
+        var data={'fp':"%s"};
+        $("#%s").click(function(){
+            $("#%s").parent().append($('<div class="busy">Busy...</div>'));
+            $.ajax({
+                url:"/up",
+                data:data,
+                success:function(dat){
+                    $("#%s").parent().slideUp();
+                    }
+                });
+            });
+        }
+    )()
+    </script>'''%(fpjs, idd, idd, idd)
+    return res
+
 def mkdelbutton(fp):
     idd=str(uuid.uuid4()).replace('-','_')
     res='<div class="button" id="%s">%s</div>'%(idd, 'delete')
+    fpjs=fp.replace("\'","\\\'")
     res+='''<script>
     (function(){
-        var data={'fp':'%s'};
+        var data={'fp':"%s"};
         $("#%s").click(function(){
             $("#%s").parent().append($('<div class="busy">Busy...</div>'));
             $.ajax({
@@ -102,15 +139,16 @@ def mkdelbutton(fp):
             });
         }
     )()
-    </script>'''%(fp, idd, idd, idd)
+    </script>'''%(fpjs, idd, idd, idd)
     return res
     
 def mkmvbutton(target, fp):
     idd=str(uuid.uuid4()).replace('-','_')
     res='<div class="button" id="%s">%s</div>'%(idd, target.name)
+    fpjs=fp.replace("\'","\\\'")
     res+='''<script>
     (function(){
-        var data={'target':'%s','fp':'%s'};
+        var data={'target':'%s','fp':"%s"};
         $("#%s").click(function(){
             $("#%s").parent().append($('<div class="busy">Busy...</div>'));
             $.ajax({
@@ -128,7 +166,7 @@ def mkmvbutton(target, fp):
             });
         }
     )()
-    </script>'''%(target.dest, fp, idd, idd, idd, idd)
+    </script>'''%(target.dest, fpjs, idd, idd, idd, idd)
     return res
 
 def image(fp):
@@ -167,6 +205,7 @@ def display(d, f):
     if kind =='image':
         res=image(fp)
         res+=buttons('image',fp)
+        res+=mkupbutton(fp)
     elif kind =='mp3':
         res=mp3(fp)
         res+=buttons('mp3',fp)
@@ -205,20 +244,18 @@ class delete:
             log('removed'+fp)
             os.remove(fp)
 
-def log(arggs):
-    return
-    try:
-        if arggs:
-            if len(arggs)>1:
-                res=arggs[0]%args[1:]
-            else:
-                res=arggs[0]
-        moment=datetime.datetime.now()
-        open('log.txt','a').write(moment+': '+res+'\n')
-    except:
-        import ipdb;ipdb.set_trace();print 'ipdb!'
-        print 'x'
-    
+class up:
+    def GET(self):
+        pts=urlparse.parse_qs(web.ctx.query)
+        fp=pts['fp'][0].encode('raw_unicode_escape')
+        target=pts['?target'][0].encode('raw_unicode_escape')
+        web.header("Content-Type", 'text/json')
+        fn=os.path.split(fp)[-1]
+        res={}
+        mkupres=putup(fp)
+        res['res']=mkupres
+        return simplejson.dumps(res)
+
 class move:
     def GET(self):
         pts=urlparse.parse_qs(web.ctx.query)
@@ -254,7 +291,7 @@ class index:
         res=[]
         did=0
         for f in files:
-            if did>100:break
+            if did>1000:break
             if '.' not in f:
                 continue
             fn, ext=f.lower().rsplit('.',1)
