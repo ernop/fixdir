@@ -49,6 +49,9 @@ EXTENSIONS.extend(MOVIE_EXTENSIONS)
 IMAGE_TARGETS=[TARGETS[n] for n in 'get home other'.split()]
 MP3_TARGETS=[TARGETS[n] for n in 'mp3albums mp3discography mp3spoken mp3'.split()]
 MOVIE_TARGETS=[TARGETS[n] for n in 'movie other tv'.split()]
+MOVIEDIR_TARGETS=MOVIE_TARGETS[:]
+OTHERDIR_TARGETS=[TARGETS[n] for n in 'movie other tv'.split()]
+OTHERDIR_TARGETS.extend(MP3_TARGETS)
 
 def has_movie(fp):
     files=os.listdir(fp)
@@ -60,7 +63,7 @@ def has_movie(fp):
             return True
         
 def getkind(fp):
-    fp=fp.lower()
+    
     if os.path.isdir(fp):
         if has_movie(fp):
             return 'moviedir'
@@ -68,14 +71,13 @@ def getkind(fp):
             return 'otherdir'
     if '.' not in fp:
         return False
-    ext=fp.split('.')[-1]
+    ext=fp.split('.')[-1].lower()
     if ext in IMAGE_EXTENSIONS:
         return 'image'
     if ext in MP3_EXTENSIONS:
         return 'mp3'
     if ext in MOVIE_EXTENSIONS:
         return 'movie'
-        
     return False
 
 def buttons(kind, fp):
@@ -90,10 +92,10 @@ def buttons(kind, fp):
         for target in MP3_TARGETS:
             buttons.append(mkmvbutton(target, fp))
     elif kind=='moviedir':
-        for target in TARGETS:
+        for target in MOVIEDIR_TARGETS:
             buttons.append(mkmvbutton(target, fp))
     elif kind=='otherdir':
-        for target in TARGETS:
+        for target in OTHERDIR_TARGETS:
             buttons.append(mkmvbutton(target, fp))
     return ''.join(buttons)
 
@@ -185,6 +187,7 @@ def display(d, f):
     fp=os.path.join(d, f)
     res=None
     kind=getkind(fp)
+    
     if kind =='image':
         res=image(fp)
         res+=buttons('image',fp)
@@ -202,7 +205,11 @@ def display(d, f):
     elif kind=='otherdir':
         res=otherdir(fp)
         res+=buttons('otherdir',fp)
-    res+=mkfpbutton(fp, 'delete')
+    try:
+        res+=mkfpbutton(fp, 'delete')
+    except:
+        import traceback;traceback.print_exc()
+        import ipdb;ipdb.set_trace();print 'ipdb!'
     return res
 
 
@@ -244,9 +251,17 @@ class up:
 
 
 def readfp():
+    return readqs('fp')
+    
+def readqs(name):
+    
     pts=urlparse.parse_qs(web.ctx.query[1:])
-    fp=pts['fp'][0].encode('raw_unicode_escape')
-    return fp
+    try:
+        res=pts[name][0].encode('raw_unicode_escape')
+    except KeyError:
+        res=''
+    return res
+    
 
 class play:
     def GET(self):
@@ -289,6 +304,8 @@ class move:
 HEAD="<head></head><body>"
 TAIL="</body>"
 
+DIRS=['/media/I/dl','/media/I/get','/home/ernie/file',]
+
 class clearlocks:
     def GET(self):
         cmd='rm locks/*'
@@ -300,19 +317,29 @@ class clearlocks:
 
 class index:
     def GET(self):
-        d='/media/I/dl'
+        d=readqs('dir')
+        if not d:
+            d='/media/I/dl'
         files=os.listdir(d)
         res=[]
         did=0
         for f in files:
-            #~ import ipdb;ipdb.set_trace();print 'ipdb!'
-            if did>1000:break
-            if '.' not in f:
-                continue
-            fn, ext=f.lower().rsplit('.',1)
-            if ext not in EXTENSIONS:
-                continue
-            th=display(d, f)
+            fp=os.path.join(d, f)
+            if os.path.isdir(fp):
+                pass
+            else:
+                if '.' not in f:
+                    print 'bad f.',f
+                    continue
+                fn, ext=f.lower().rsplit('.',1)
+                if ext not in EXTENSIONS:
+                    continue
+            try:
+                th=display(d, f)
+            except:
+                import traceback;traceback.print_exc()
+                import ipdb;ipdb.set_trace();print 'ipdb!'
+                print 'x'
             if not th:
                 continue
             did+=1
@@ -324,7 +351,7 @@ class index:
             if not ok:
                 continue
             okres.append(ok)
-        return render.index(okres)
+        return render.index(okres, d, DIRS)
 
 app=web.application(urls, globals(), autoreload=True)
 if __name__=="__main__":
