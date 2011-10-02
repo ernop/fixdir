@@ -1,5 +1,5 @@
 import os, uuid, urlparse, simplejson, shutil, re, datetime, time, hashlib
-
+import subprocess
 import web
 
 from putup import putup
@@ -18,6 +18,7 @@ urls=('/','index',
     '/clearlocks','clearlocks',
 )
 
+
 target_defs={'mp3albums':'/media/I/mp3albums',
     'home':'/home/ernie',
     'mp3discography':'/media/I/mp3discography',
@@ -29,7 +30,10 @@ target_defs={'mp3albums':'/media/I/mp3albums',
     'get':'/media/I/get',
     'know':'/home/ernie/file/g_know',
     'fambly':'/home/ernie/file/fambly',
+    'dl':'/media/twot/dl',
 }
+PLAYERS={'mp3':'rhythmbox', 'doc':'netscape', 'movie':'vlc'}
+DIRS=['/media/I/dl','/media/I/get','/home/ernie/file',]
 
 if os.path.exists('laptop'):
     target_defs={'mp3albums':'d:/mp3albums',
@@ -37,11 +41,19 @@ if os.path.exists('laptop'):
         'mp3':'d:/mp3',
         'home':'d:/file',
         'get':'d:/get',
-        'tv':'d:/dl',
         'know':'d:/file/g_know',
         'fambly':'d:/file/fambly',
         'myphoto':'d:/file/myphoto',
+        'ebook':'d:/ebook',
+        'dl':'d:/dl',
     }
+    PLAYERS['mp3']=r'"c:\program files\winamp\winamp.exe" /ADD'
+    PLAYERS['doc']=r'"c:\program files\mozilla firefox\firefox.exe"'
+    DIRS=['d:/dl','d:/file','d:/get','d:/','c:/','d:/saved',]
+    PLAYERS['txt']=r'"c:\notepad2\notepad2.exe"'
+    PLAYERS['pdf']=r'"c:\program files\foxit software\foxit reader\foxit reader.exe"'
+
+PLAYERS['mp3dir']=PLAYERS['mp3']
 
 class Target:
     def __init__(self, name, dest):
@@ -56,17 +68,21 @@ for a,b in target_defs.items():
 
 IMAGE_EXTENSIONS=['jpg','png','gif','jpeg','svg',]
 MP3_EXTENSIONS=['mp3',]
-MOVIE_EXTENSIONS=['avi','wmv','rm','mp3','mp4','avi','mkv','mpg','wmv']
+MOVIE_EXTENSIONS=['avi','wmv','rm','mp4','avi','mkv','mpg','wmv']
+DOC_EXTENSIONS='html doc mobi txt rtf epub pdf htm'.split()
+
 EXTENSIONS=[]
 EXTENSIONS.extend(IMAGE_EXTENSIONS)
 EXTENSIONS.extend(MP3_EXTENSIONS)
 EXTENSIONS.extend(MOVIE_EXTENSIONS)
+EXTENSIONS.extend(DOC_EXTENSIONS)
+
 IMAGE_TARGETS=[TARGETS[n] for n in 'get home other know fambly myphoto'.split() if n in TARGETS]
 MP3_TARGETS=[TARGETS[n] for n in 'mp3albums mp3discography mp3spoken mp3'.split() if n in TARGETS]
-MOVIE_TARGETS=[TARGETS[n] for n in 'movie other tv'.split() if n in TARGETS]
-MOVIEDIR_TARGETS=MOVIE_TARGETS[:]
-OTHERDIR_TARGETS=[TARGETS[n] for n in 'movie other tv'.split() if n in TARGETS]
+MOVIE_TARGETS=[TARGETS[n] for n in 'movie other'.split() if n in TARGETS]
+OTHERDIR_TARGETS=[TARGETS[n] for n in 'movie other myphoto'.split() if n in TARGETS]
 OTHERDIR_TARGETS.extend(MP3_TARGETS)
+DOC_TARGETS=[TARGETS[n] for n in 'ebook file home'.split() if n in TARGETS]
 
 def has_movie(fp):
     files=os.listdir(fp)
@@ -77,11 +93,21 @@ def has_movie(fp):
         if ext in MOVIE_EXTENSIONS:
             return True
 
-def getkind(fp):
+def has_mp3(fp):
+    files=os.listdir(fp)
+    for f in files:
+        if '.' not in f:
+            continue
+        ext=f.split('.')[-1]
+        if ext in MP3_EXTENSIONS:
+            return True
 
+def getkind(fp):
     if os.path.isdir(fp):
         if has_movie(fp):
             return 'moviedir'
+        elif has_mp3(fp):
+            return 'mp3dir'
         else:
             if os.listdir(fp):
                 #it has files in it at least.
@@ -96,6 +122,8 @@ def getkind(fp):
         return 'mp3'
     if ext in MOVIE_EXTENSIONS:
         return 'movie'
+    if ext in DOC_EXTENSIONS:
+        return 'doc'
     return False
 
 def buttons(kind, fp):
@@ -103,23 +131,23 @@ def buttons(kind, fp):
     if kind=='image':
         for target in IMAGE_TARGETS:
             buttons.append(mkmvbutton(target, fp))
-    elif kind=='movie':
+    elif kind in ['movie','moviedir']:
         for target in MOVIE_TARGETS:
             buttons.append(mkmvbutton(target, fp))
-    elif kind=='mp3':
+    elif kind in ['mp3','mp3dir']:
         for target in MP3_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
-    elif kind=='moviedir':
-        for target in MOVIEDIR_TARGETS:
             buttons.append(mkmvbutton(target, fp))
     elif kind=='otherdir':
         for target in OTHERDIR_TARGETS:
+            buttons.append(mkmvbutton(target, fp))
+    elif kind=='doc':
+        for target in DOC_TARGETS:
             buttons.append(mkmvbutton(target, fp))
     return ''.join(buttons)
 
 def mkgolink(fp):
     """just go there."""
-    res='<a href=/?dir=%s>%s</a>'%(fp,fp)
+    res='<a href="/?dir=%s">%s</a>'%(fp,fp)
     return res
 
 def mkmvbutton(target, fp):
@@ -194,12 +222,18 @@ def moviedir(fp):
         if ext.lower() in IMAGE_EXTENSIONS:
             pass
 
+def doc(fp):
+    return 'DOC<br>%s'%fp
+
+def mp3dir(fp):
+    return 'MP3dir<br>%s'%fp
+
 def movie(fp):
     res='MOVIE<br>%s'%(fp)
     return res
 
 def moviedir(fp):
-    res='MOVIEDIR<br>%s'%fp
+    res='MOVIEdir<br>%s'%fp
     return res
 
 def otherdir(fp):
@@ -217,6 +251,7 @@ def display(d, f):
     elif kind =='mp3':
         res=mp3(fp)
         res+=buttons('mp3',fp)
+        res+=mkfpbutton(fp, 'play')
     elif kind == 'movie':
         res=movie(fp)
         res+=buttons('movie',fp)
@@ -224,10 +259,20 @@ def display(d, f):
     elif kind=='moviedir':
         res=moviedir(fp)
         res+=buttons('moviedir',fp)
+        res+=mkgolink(fp)
+    elif kind=='mp3dir':
+        res=mp3dir(fp)
+        res+=buttons('mp3dir',fp)
+        res+=mkfpbutton(fp, 'play')
+        res+=mkgolink(fp)
     elif kind=='otherdir':
         res=otherdir(fp)
         res+=buttons('otherdir',fp)
         res+=mkgolink(fp)
+    elif kind=='doc':
+        res=doc(fp)
+        res+=buttons('doc',fp)
+        res+=mkfpbutton(fp, 'play')
     else:
         #empty dir.
         return res
@@ -296,11 +341,22 @@ def readqs(name):
 class play:
     def GET(self):
         fp=readfp()
+        kind=getkind(fp)
         if not getlock(fp):return False
-        cmd='vlc "%s"'%fp
-        cmdres=os.system(cmd)
+        prefix=''
+        ext=fp.rsplit('.')[-1]
+        if ext in PLAYERS:
+            player=PLAYERS[ext]
+        else:
+            player=PLAYERS[kind]
+        if kind=='doc' and ext not in PLAYERS:
+            prefix='file:///'
+        cmd='%s "%s%s"'%(player, prefix, fp)
+        print cmd
+        subprocess.Popen(cmd)
         res={}
-        res['res']=cmdres
+        res['res']='success'
+        unlock(fp)
         return simplejson.dumps(res)
 
 
@@ -333,10 +389,6 @@ class move:
 
 HEAD="<head></head><body>"
 TAIL="</body>"
-
-DIRS=['/media/I/dl','/media/I/get','/home/ernie/file',]
-if os.path.exists('laptop'):
-    DIRS=['d:/dl','d:/file','d:/get','d:/','c:/','d:/saved',]
 
 DIRS.extend(target_defs.values())
 DIRS=list(set([d for d in DIRS if os.path.isdir(d)]))
