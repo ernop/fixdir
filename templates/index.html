@@ -32,6 +32,7 @@ img {
     top:50px;
     border:6px dashed blue;
     display:inline-block;
+    padding:17px;
 }
 </style>
 </head>
@@ -39,7 +40,9 @@ img {
 $for rr in res:
     <div class="row">$:rr</div>
 <div class="fixed">
-<!--<div id="clearlocks">clear locks</div>-->
+$for DD in DIRS:
+    <br><a href="?dir=$:DD">$:DD</a>
+<div id="clearlocks">clear locks</div>
 
 </div>
 </body>

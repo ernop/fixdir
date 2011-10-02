@@ -14,9 +14,9 @@ def log(*arggs):
         import traceback;traceback.print_exc()
         import ipdb;ipdb.set_trace();print 'ipdb!'
         print 'x'
-        
+
 def getlock(fp, source=None):
-    lockfile=os.path.join('locks', hashlib.md5(fp).hexdigest())
+    lockfile='locks/%s'%(hashlib.md5(fp).hexdigest())
     slept=0
     while 1:
         if source:
@@ -32,15 +32,14 @@ def getlock(fp, source=None):
         if slept>55:
             log('failed to lock %s',fp)
             return False
-        
+
     return False
 
 def unlock(fp):
-    lockfile=os.path.join('locks', hashlib.md5(fp).hexdigest())
+    lockfile='locks/%s'%(hashlib.md5(fp).hexdigest())
     if os.path.exists(lockfile):
         os.remove(lockfile)
         log('unlocked %s',fp)
     else:
         import ipdb;ipdb.set_trace();print 'ipdb!'
         print 'missing lock.'
-        

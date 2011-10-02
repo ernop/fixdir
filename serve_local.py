@@ -6,6 +6,8 @@ from putup import putup
 from util import *
 
 render = web.template.render('templates/')
+if not os.path.exists('locks'):
+    os.mkdir('locks')
 
 urls=('/','index',
     '/images/(.*)', 'images', #this is where the image folder is located....
@@ -25,8 +27,21 @@ target_defs={'mp3albums':'/media/I/mp3albums',
     'movie':'/media/twot/movie',
     'tv':'/media/twot/tv',
     'get':'/media/I/get',
+    'know':'/home/ernie/file/g_know',
+    'fambly':'/home/ernie/file/fambly',
 }
 
+if os.path.exists('laptop'):
+    target_defs={'mp3albums':'d:/mp3albums',
+        'other':'d:/other',
+        'mp3':'d:/mp3',
+        'home':'d:/file',
+        'get':'d:/get',
+        'tv':'d:/dl',
+        'know':'d:/file/g_know',
+        'fambly':'d:/file/fambly',
+        'myphoto':'d:/file/myphoto',
+    }
 
 class Target:
     def __init__(self, name, dest):
@@ -46,11 +61,11 @@ EXTENSIONS=[]
 EXTENSIONS.extend(IMAGE_EXTENSIONS)
 EXTENSIONS.extend(MP3_EXTENSIONS)
 EXTENSIONS.extend(MOVIE_EXTENSIONS)
-IMAGE_TARGETS=[TARGETS[n] for n in 'get home other'.split()]
-MP3_TARGETS=[TARGETS[n] for n in 'mp3albums mp3discography mp3spoken mp3'.split()]
-MOVIE_TARGETS=[TARGETS[n] for n in 'movie other tv'.split()]
+IMAGE_TARGETS=[TARGETS[n] for n in 'get home other know fambly myphoto'.split() if n in TARGETS]
+MP3_TARGETS=[TARGETS[n] for n in 'mp3albums mp3discography mp3spoken mp3'.split() if n in TARGETS]
+MOVIE_TARGETS=[TARGETS[n] for n in 'movie other tv'.split() if n in TARGETS]
 MOVIEDIR_TARGETS=MOVIE_TARGETS[:]
-OTHERDIR_TARGETS=[TARGETS[n] for n in 'movie other tv'.split()]
+OTHERDIR_TARGETS=[TARGETS[n] for n in 'movie other tv'.split() if n in TARGETS]
 OTHERDIR_TARGETS.extend(MP3_TARGETS)
 
 def has_movie(fp):
@@ -68,7 +83,10 @@ def getkind(fp):
         if has_movie(fp):
             return 'moviedir'
         else:
-            return 'otherdir'
+            if os.listdir(fp):
+                #it has files in it at least.
+                return 'otherdir'
+            return False
     if '.' not in fp:
         return False
     ext=fp.split('.')[-1].lower()
@@ -81,7 +99,7 @@ def getkind(fp):
     return False
 
 def buttons(kind, fp):
-    buttons=[]
+    buttons=['<br>',]
     if kind=='image':
         for target in IMAGE_TARGETS:
             buttons.append(mkmvbutton(target, fp))
@@ -98,6 +116,11 @@ def buttons(kind, fp):
         for target in OTHERDIR_TARGETS:
             buttons.append(mkmvbutton(target, fp))
     return ''.join(buttons)
+
+def mkgolink(fp):
+    """just go there."""
+    res='<a href=/?dir=%s>%s</a>'%(fp,fp)
+    return res
 
 def mkmvbutton(target, fp):
     idd=str(uuid.uuid4()).replace('-','_')
@@ -138,9 +161,9 @@ def mkfpbutton(fp, cmd):
             $.ajax({
                 url:"/%s",
                 data:data,
-                success:function(dat){
-                    if (dat['res']!='success'){
-                        $("#%s").parent().append($('<div class="fail">Fail: '+dat['res']+'</div>')).find('.busy').remove();
+                success:function(ddata){
+                    if (ddata['res']!='success'){
+                        $("#%s").parent().append($('<div class="fail">Fail: '+ddata['res']+'</div>')).find('.busy').remove();
                     }
                     else{
                         $("#%s").parent().slideUp();
@@ -155,7 +178,7 @@ def mkfpbutton(fp, cmd):
 
 
 def image(fp):
-    res='<img src="/images%s"">'%(fp)
+    res='<img src="/images/%s"">'%(fp)
     return res
 
 def mp3(fp):
@@ -184,10 +207,9 @@ def otherdir(fp):
     return res
 
 def display(d, f):
-    fp=os.path.join(d, f)
+    fp=os.path.join(d, f).replace('\\','/')
     res=None
     kind=getkind(fp)
-    import ipdb;ipdb.set_trace();print 'in ipdb!'
     if kind =='image':
         res=image(fp)
         res+=buttons('image',fp)
@@ -205,6 +227,10 @@ def display(d, f):
     elif kind=='otherdir':
         res=otherdir(fp)
         res+=buttons('otherdir',fp)
+        res+=mkgolink(fp)
+    else:
+        #empty dir.
+        return res
     try:
         res+=mkfpbutton(fp, 'delete')
     except:
@@ -215,16 +241,18 @@ def display(d, f):
 
 class images:
     def GET(self,name):
-        ext = name.split(".")[-1].lower() # Gather extension
+        ext = name.rsplit(".",1)[-1].lower()
         cType = {
             "png":"image/png",
             "jpg":"image/jpeg",
             "gif":"image/gif",
             "svg":"image/svg+xml",
-            "ico":"image/x-icon"           }
-
-        web.header("Content-Type", cType[ext]) # Set the Header
-        return open('/%s'%name,"rb").read() # Notice 'rb' for reading images
+            "ico":"image/x-icon",}
+        if ext not in cType:
+            print 'bad ext',ext
+            return None
+        web.header("Content-Type", cType[ext])
+        return open('%s'%name,"rb").read()
 
 class delete:
     def GET(self):
@@ -236,6 +264,8 @@ class delete:
             log('removed'+fp)
             os.remove(fp)
             unlock(fp)
+        res={'res':'success','fp':fp}
+        return simplejson.dumps(res)
 
 class up:
     def GET(self):
@@ -246,6 +276,7 @@ class up:
         res={}
         mkupres=putup(fp)
         res['res']=mkupres
+        res['fp']=fp
         unlock(fp)
         return simplejson.dumps(res)
 
@@ -254,10 +285,9 @@ def readfp():
     return readqs('fp')
 
 def readqs(name):
-
     pts=urlparse.parse_qs(web.ctx.query[1:])
     try:
-        res=pts[name][0].encode('raw_unicode_escape')
+        res=pts[name][0].encode('raw_unicode_escape').replace('\x00','/000')
     except KeyError:
         res=''
     return res
@@ -277,7 +307,7 @@ class play:
 class move:
     def GET(self):
         pts=urlparse.parse_qs(web.ctx.query[1:])
-        fp=pts['fp'][0].encode('raw_unicode_escape')
+        fp=pts['fp'][0].encode('raw_unicode_escape').replace('\x00','/000')
         target=pts['target'][0].encode('raw_unicode_escape')
         web.header("Content-Type", 'text/json')
         print fp, target, pts
@@ -305,6 +335,11 @@ HEAD="<head></head><body>"
 TAIL="</body>"
 
 DIRS=['/media/I/dl','/media/I/get','/home/ernie/file',]
+if os.path.exists('laptop'):
+    DIRS=['d:/dl','d:/file','d:/get','d:/','c:/','d:/saved',]
+
+DIRS.extend(target_defs.values())
+DIRS=list(set([d for d in DIRS if os.path.isdir(d)]))
 
 class clearlocks:
     def GET(self):
@@ -327,7 +362,7 @@ class index:
             files=os.listdir(d)
         res=[]
         did=0
-        for f in files:
+        for f in files[:40]:
             fp=os.path.join(d, f)
             if os.path.isdir(fp):
                 pass
@@ -340,7 +375,11 @@ class index:
                     continue
             try:
                 th=display(d, f)
+            except WindowsError:
+                print 'windowserror!',d,f
+                continue
             except:
+
                 import traceback;traceback.print_exc()
                 import ipdb;ipdb.set_trace();print 'ipdb!'
                 print 'x'
@@ -349,7 +388,6 @@ class index:
             did+=1
             res.append(th)
         okres=[]
-        #~ import ipdb;ipdb.set_trace();print 'ipdb!'
         for r in res:
             ok=r.decode('utf8')
             if not ok:
