@@ -4,7 +4,7 @@ import web
 
 from putup import putup
 from util import *
-        
+
 render = web.template.render('templates/')
 
 urls=('/','index',
@@ -61,9 +61,9 @@ def has_movie(fp):
         ext=f.split('.')[-1]
         if ext in MOVIE_EXTENSIONS:
             return True
-        
+
 def getkind(fp):
-    
+
     if os.path.isdir(fp):
         if has_movie(fp):
             return 'moviedir'
@@ -152,7 +152,7 @@ def mkfpbutton(fp, cmd):
     )()
     </script>'''%(fpjs, idd, idd, cmd, idd, idd)
     return res
-    
+
 
 def image(fp):
     res='<img src="/images%s"">'%(fp)
@@ -161,7 +161,7 @@ def image(fp):
 def mp3(fp):
     res='MP3<br>%s'%fp
     return res
-    
+
 def moviedir(fp):
     res='MOVIEDIR<br>'
     files=os.listdir(fp)
@@ -178,7 +178,7 @@ def movie(fp):
 def moviedir(fp):
     res='MOVIEDIR<br>%s'%fp
     return res
-    
+
 def otherdir(fp):
     res='OTHERDIR<br>%s'%fp
     return res
@@ -187,7 +187,7 @@ def display(d, f):
     fp=os.path.join(d, f)
     res=None
     kind=getkind(fp)
-    
+    import ipdb;ipdb.set_trace();print 'in ipdb!'
     if kind =='image':
         res=image(fp)
         res+=buttons('image',fp)
@@ -252,16 +252,16 @@ class up:
 
 def readfp():
     return readqs('fp')
-    
+
 def readqs(name):
-    
+
     pts=urlparse.parse_qs(web.ctx.query[1:])
     try:
         res=pts[name][0].encode('raw_unicode_escape')
     except KeyError:
         res=''
     return res
-    
+
 
 class play:
     def GET(self):
@@ -320,7 +320,11 @@ class index:
         d=readqs('dir')
         if not d:
             d='/media/I/dl'
-        files=os.listdir(d)
+        if not os.path.isdir(d):
+            d='d:/dl'
+        files=[]
+        if os.path.isdir(d):
+            files=os.listdir(d)
         res=[]
         did=0
         for f in files:
