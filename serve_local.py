@@ -1,4 +1,4 @@
-import os, uuid, urlparse, simplejson, shutil, re, datetime, time, hashlib
+import os, uuid, urlparse, simplejson, shutil, re, datetime, time, hashlib, urllib
 import subprocess
 import web
 
@@ -16,6 +16,7 @@ urls=('/','index',
     '/up','up',
     '/play','play',
     '/clearlocks','clearlocks',
+    '/aa','test',
 )
 
 
@@ -31,11 +32,18 @@ target_defs={'mp3albums':'/media/I/mp3albums',
     'know':'/home/ernie/file/g_know',
     'fambly':'/home/ernie/file/fambly',
     'dl':'/media/twot/dl',
+    'myphoto':'/home/ernie/myphoto',
+    'ebook':'/home/ernie/ebook',
+    'saved':'/media/I/saved',
 }
-PLAYERS={'mp3':'rhythmbox', 'doc':'netscape', 'movie':'vlc'}
+PLAYERS={'mp3':'rhythmbox', 'doc':'evince', 'movie':'vlc'}
 DIRS=['/media/I/dl','/media/I/get','/home/ernie/file',]
 
+LINUX=True
 if os.path.exists('laptop'):
+    LINUX=True
+
+if not LINUX:
     target_defs={'mp3albums':'d:/mp3albums',
         'other':'d:/other',
         'mp3':'d:/mp3',
@@ -52,6 +60,7 @@ if os.path.exists('laptop'):
     DIRS=['d:/dl','d:/file','d:/get','d:/','c:/','d:/saved',]
     PLAYERS['txt']=r'"c:\notepad2\notepad2.exe"'
     PLAYERS['pdf']=r'"c:\program files\foxit software\foxit reader\foxit reader.exe"'
+
 
 PLAYERS['mp3dir']=PLAYERS['mp3']
 
@@ -91,7 +100,7 @@ def has_movie(fp):
             continue
         ext=f.split('.')[-1]
         if ext in MOVIE_EXTENSIONS:
-            return True
+            return os.path.join(fp, f)
 
 def has_mp3(fp):
     files=os.listdir(fp)
@@ -147,7 +156,7 @@ def buttons(kind, fp):
 
 def mkgolink(fp):
     """just go there."""
-    res='<a href="/?dir=%s">%s</a>'%(fp,fp)
+    res='<a href="/?dir=%s">%s</a>'%(urllib.quote(fp),fp)
     return res
 
 def mkmvbutton(target, fp):
@@ -162,7 +171,8 @@ def mkmvbutton(target, fp):
             $.ajax({
                 url:"/move",
                 data:data,
-                success:function(dat){
+                success:function(dat, textStatus, xhr){
+                    
                     if (dat['res']!='success'){
                         $("#%s").parent().append($('<div class="existed">Fail: '+dat['res']+'</div>')).find('.busy').remove();
                     }
@@ -189,9 +199,9 @@ def mkfpbutton(fp, cmd):
             $.ajax({
                 url:"/%s",
                 data:data,
-                success:function(ddata){
-                    if (ddata['res']!='success'){
-                        $("#%s").parent().append($('<div class="fail">Fail: '+ddata['res']+'</div>')).find('.busy').remove();
+                success:function(dat, textStatus, xhr){
+                    if (dat['res']!='success'){
+                        $("#%s").parent().append($('<div class="fail">Fail: '+dat['res']+'</div>')).find('.busy').remove();
                     }
                     else{
                         $("#%s").parent().slideUp();
@@ -258,7 +268,9 @@ def display(d, f):
         res+=mkfpbutton(fp, 'play')
     elif kind=='moviedir':
         res=moviedir(fp)
+        mm=has_movie(fp)
         res+=buttons('moviedir',fp)
+        res+=mkfpbutton(mm, 'play')
         res+=mkgolink(fp)
     elif kind=='mp3dir':
         res=mp3dir(fp)
@@ -273,6 +285,7 @@ def display(d, f):
         res=doc(fp)
         res+=buttons('doc',fp)
         res+=mkfpbutton(fp, 'play')
+        res+=mkgolink(fp)
     else:
         #empty dir.
         return res
@@ -302,6 +315,7 @@ class images:
 class delete:
     def GET(self):
         fp=readfp()
+        
         if not getlock(fp):return False
         print 'would remove %s'%fp
         print fp
@@ -310,6 +324,7 @@ class delete:
             os.remove(fp)
             unlock(fp)
         res={'res':'success','fp':fp}
+        web.header("Content-Type", 'text/json')
         return simplejson.dumps(res)
 
 class up:
@@ -349,14 +364,23 @@ class play:
             player=PLAYERS[ext]
         else:
             player=PLAYERS[kind]
-        if kind=='doc' and ext not in PLAYERS:
-            prefix='file:///'
+        if LINUX:
+            prefix=''
+        else:
+            if kind=='doc' and ext not in PLAYERS:
+                prefix='file:///'
         cmd='%s "%s%s"'%(player, prefix, fp)
         print cmd
-        subprocess.Popen(cmd)
+        if LINUX:
+            cmdres=os.system(cmd)
+        else:
+            cmdres=subprocess.Popen(cmd)
+        if cmdres:
+            import ipdb;ipdb.set_trace();print 'ipdb!'
         res={}
         res['res']='success'
         unlock(fp)
+        web.header("Content-Type", 'text/json')
         return simplejson.dumps(res)
 
 
@@ -365,7 +389,7 @@ class move:
         pts=urlparse.parse_qs(web.ctx.query[1:])
         fp=pts['fp'][0].encode('raw_unicode_escape').replace('\x00','/000')
         target=pts['target'][0].encode('raw_unicode_escape')
-        web.header("Content-Type", 'text/json')
+        
         print fp, target, pts
         slept=0
         if not getlock(fp):return False
@@ -373,7 +397,7 @@ class move:
         targetdone=os.path.join(target, fn)
         res={'fp':fp,'target':target,}
         if os.path.exists(targetdone):
-            res={'res':'existed.'}
+            res['res']='existed.'
         else:
             try:
                 shutil.move(fp, target)
@@ -385,6 +409,7 @@ class move:
                 log('failed move '+fp+'to'+target)
                 res['res']='fail.'
         unlock(fp)
+        web.header("Content-Type", 'text/json')
         return simplejson.dumps(res)
 
 HEAD="<head></head><body>"
@@ -392,6 +417,7 @@ TAIL="</body>"
 
 DIRS.extend(target_defs.values())
 DIRS=list(set([d for d in DIRS if os.path.isdir(d)]))
+DIRS.sort()
 
 class clearlocks:
     def GET(self):
@@ -401,6 +427,11 @@ class clearlocks:
         res['res']=cmdres
         web.header("Content-Type", 'text/json')
         return simplejson.dumps(res)
+
+
+class test:
+    def GET(self):
+        import ipdb;ipdb.set_trace();print 'ipdb!'
 
 class index:
     def GET(self):
