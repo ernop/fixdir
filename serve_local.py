@@ -11,6 +11,7 @@ if not os.path.exists('locks'):
 
 urls=('/','index',
     '/images/(.*)', 'images', #this is where the image folder is located....
+    '/docs/(.*)', 'docs', #this is where the image folder is located....
     '/move','move',
     '/delete','delete',
     '/up','up',
@@ -157,6 +158,7 @@ def buttons(kind, fp):
 def mkgolink(fp):
     """just go there."""
     res='<a href="/?dir=%s">%s</a>'%(urllib.quote(fp),fp)
+    #res+=' <a href="/docs/%s">filelink</a>'%(urllib.quote(fp))
     return res
 
 def mkmvbutton(target, fp):
@@ -172,19 +174,21 @@ def mkmvbutton(target, fp):
                 url:"/move",
                 data:data,
                 success:function(dat, textStatus, xhr){
-                    
+                    $("#%s").parent().find('.busy').remove()
                     if (dat['res']!='success'){
-                        $("#%s").parent().append($('<div class="existed">Fail: '+dat['res']+'</div>')).find('.busy').remove();
+                        $("#%s").parent().append($('<div class="existed">Fail: '+dat['res']+'</div>'));
                     }
                     else{
-                        $("#%s").parent().slideUp();
+                        if (dat['hide']){
+                            $("#%s").parent().slideUp();
+                        }
                     }
                     }
                 });
             });
         }
     )()
-    </script>'''%(target.dest, fpjs, idd, idd, idd, idd)
+    </script>'''%(target.dest, fpjs, idd, idd, idd, idd, idd)
     return res
 
 def mkfpbutton(fp, cmd):
@@ -200,18 +204,21 @@ def mkfpbutton(fp, cmd):
                 url:"/%s",
                 data:data,
                 success:function(dat, textStatus, xhr){
+                    $("#%s").parent().find('.busy').remove();
                     if (dat['res']!='success'){
-                        $("#%s").parent().append($('<div class="fail">Fail: '+dat['res']+'</div>')).find('.busy').remove();
+                        $("#%s").parent().append($('<div class="fail">Fail: '+dat['res']+'</div>'));
                     }
                     else{
-                        $("#%s").parent().slideUp();
+                        if (dat['hide']){
+                            $("#%s").parent().slideUp();
+                        }
                     }
                     }
                 });
             });
         }
     )()
-    </script>'''%(fpjs, idd, idd, cmd, idd, idd)
+    </script>'''%(fpjs, idd, idd, cmd, idd, idd, idd)
     return res
 
 
@@ -233,7 +240,9 @@ def moviedir(fp):
             pass
 
 def doc(fp):
-    return 'DOC<br>%s'%fp
+    res='DOC<br>%s<br><a href="/docs/%s">%s</a>'%(fp,urllib.quote(fp),fp)
+    res+='<a href="/images/%s">img</a>'%(urllib.quote(fp))
+    return res
 
 def mp3dir(fp):
     return 'MP3dir<br>%s'%fp
@@ -254,36 +263,58 @@ def display(d, f):
     fp=os.path.join(d, f).replace('\\','/')
     res=None
     kind=getkind(fp)
+    buttons=['<br>',]
     if kind =='image':
         res=image(fp)
-        res+=buttons('image',fp)
+        #res+=buttons('image',fp)
+        for target in IMAGE_TARGETS:
+            buttons.append(mkmvbutton(target, fp))
+        res+=''.join(buttons)
         res+=mkfpbutton(fp, 'up')
     elif kind =='mp3':
         res=mp3(fp)
-        res+=buttons('mp3',fp)
+        #res+=buttons('mp3',fp)
+        for target in MP3_TARGETS:
+            buttons.append(mkmvbutton(target, fp))
+        res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
     elif kind == 'movie':
         res=movie(fp)
-        res+=buttons('movie',fp)
+        #res+=buttons('movie',fp)
+        for target in MOVIE_TARGETS:
+            buttons.append(mkmvbutton(target, fp))
+        res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
     elif kind=='moviedir':
         res=moviedir(fp)
         mm=has_movie(fp)
-        res+=buttons('moviedir',fp)
+        #res+=buttons('moviedir',fp)
+        for target in MOVIE_TARGETS:
+            buttons.append(mkmvbutton(target, fp))
+        res+=''.join(buttons)
         res+=mkfpbutton(mm, 'play')
         res+=mkgolink(fp)
     elif kind=='mp3dir':
         res=mp3dir(fp)
-        res+=buttons('mp3dir',fp)
+        #res+=buttons('mp3dir',fp)
+        for target in MP3_TARGETS:
+            buttons.append(mkmvbutton(target, fp))
+        res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
         res+=mkgolink(fp)
     elif kind=='otherdir':
         res=otherdir(fp)
-        res+=buttons('otherdir',fp)
+        #res+=buttons('otherdir',fp)
+        for target in OTHERDIR_TARGETS:
+            buttons.append(mkmvbutton(target, fp))
+        res+=''.join(buttons)
         res+=mkgolink(fp)
     elif kind=='doc':
         res=doc(fp)
-        res+=buttons('doc',fp)
+        #res+=buttons('doc',fp)
+        for target in DOC_TARGETS:
+            buttons.append(mkmvbutton(target, fp))
+        res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
         res+=mkgolink(fp)
     else:
@@ -296,6 +327,24 @@ def display(d, f):
         import ipdb;ipdb.set_trace();print 'ipdb!'
     return res
 
+class docs:
+    def GET(self,name):
+        ext = name.rsplit(".",1)[-1].lower()
+        cType = {
+            "png":"image/png",
+            "jpg":"image/jpeg",
+            "jpeg":"image/jpeg",
+            "gif":"image/gif",
+            "svg":"image/svg+xml",
+            "txt":"text/plain",
+            "htm":"text/html",
+            "html":"text/html",
+            "ico":"image/x-icon",}
+        if ext not in cType:
+            print 'bad ext',ext
+            return None
+        web.header("Content-Type", cType[ext])
+        return open('%s'%name,"rb").read()
 
 class images:
     def GET(self,name):
@@ -303,9 +352,15 @@ class images:
         cType = {
             "png":"image/png",
             "jpg":"image/jpeg",
+            "jpeg":"image/jpeg",
             "gif":"image/gif",
             "svg":"image/svg+xml",
-            "ico":"image/x-icon",}
+            "txt":"text/plain",
+            "ico":"image/x-icon",
+            "txt":"image/jpeg",
+            "htm":"image/jpeg",
+            "html":"image/jpeg",
+        }
         if ext not in cType:
             print 'bad ext',ext
             return None
@@ -324,6 +379,7 @@ class delete:
             os.remove(fp)
             unlock(fp)
         res={'res':'success','fp':fp}
+        res['hide']=True
         web.header("Content-Type", 'text/json')
         return simplejson.dumps(res)
 
@@ -337,6 +393,7 @@ class up:
         mkupres=putup(fp)
         res['res']=mkupres
         res['fp']=fp
+        res['hide']=False
         unlock(fp)
         return simplejson.dumps(res)
 
@@ -346,10 +403,11 @@ def readfp():
 
 def readqs(name):
     pts=urlparse.parse_qs(web.ctx.query[1:])
+    #pairs=urlparse.parse_qs(web.ctx.query).split('?')
     try:
         res=pts[name][0].encode('raw_unicode_escape').replace('\x00','/000')
     except KeyError:
-        res=''
+        res=None
     return res
 
 
@@ -381,6 +439,7 @@ class play:
         res['res']='success'
         unlock(fp)
         web.header("Content-Type", 'text/json')
+        res['hide']=False
         return simplejson.dumps(res)
 
 
@@ -389,7 +448,6 @@ class move:
         pts=urlparse.parse_qs(web.ctx.query[1:])
         fp=pts['fp'][0].encode('raw_unicode_escape').replace('\x00','/000')
         target=pts['target'][0].encode('raw_unicode_escape')
-        
         print fp, target, pts
         slept=0
         if not getlock(fp):return False
@@ -409,6 +467,7 @@ class move:
                 log('failed move '+fp+'to'+target)
                 res['res']='fail.'
         unlock(fp)
+        res['hide']=True
         web.header("Content-Type", 'text/json')
         return simplejson.dumps(res)
 
@@ -445,7 +504,14 @@ class index:
             files=os.listdir(d)
         res=[]
         did=0
-        for f in files[:40]:
+        page=readqs('page')
+        if page:
+            page=int(page)
+        if not page:
+            page=1
+        chunk=100
+        for f in files[(page-1)*chunk:page*chunk]:
+            print f
             fp=os.path.join(d, f)
             if os.path.isdir(fp):
                 pass
@@ -476,6 +542,11 @@ class index:
             if not ok:
                 continue
             okres.append(ok)
+        #import ipdb;ipdb.set_trace()
+        if len(files)>page*chunk:
+            qq=web.ctx.query.replace('page=%s'%page,'')
+            okres.append('<a href="%s%spage=%s">next page</a>'%(web.ctx.path, qq, str(int(page)+1)))
+            okres.insert(0, '<a href="%s%spage=%s">next page</a>'%(web.ctx.path, qq, str(int(page)+1)))
         return render.index(okres, d, DIRS)
 
 app=web.application(urls, globals(), autoreload=True)
