@@ -1,0 +1,24 @@
+<script>
+    (function(){
+        var data={'target':'{{target.dest}}','fp':"{{fpjs}}"};
+        $("#{{idd}}").click(function(){
+            $("#{{idd}}").parent().append($('<div class="busy">Busy...</div>'));
+            $.ajax({
+                url:"/{{cmd}}",
+                data:data,
+                success:function(dat, textStatus, xhr){
+                    $("#{{idd}}").parent().find('.busy').remove()
+                    if (dat['res']!='success'){
+                        $("#{{idd}}").parent().append($('<div class="existed">Fail: '+dat['res']+'</div>'));
+                    }
+                    else{
+                        if (dat['hide']){
+                            $("#{{idd}}").parent().slideUp();
+                        }
+                    }
+                    }
+                });
+            });
+        }
+    )()
+    </script>

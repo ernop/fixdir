@@ -1,6 +1,8 @@
-import os, uuid, urlparse, simplejson, shutil, re, datetime, time, hashlib, urllib
-import subprocess
+# -*- coding: utf-8 -*-
+
+import os, uuid, urlparse, simplejson, shutil, re, datetime, time, hashlib, urllib, shutil, subprocess
 import web
+import Image
 
 from putup import putup
 from util import *
@@ -27,9 +29,12 @@ target_defs={'mp3albums':'/media/I/mp3albums',
     'mp3spoken':'/media/I/mp3spoken',
     'mp3':'/media/I/mp3',
     'other':'/media/I/other',
+    'gals':'/media/I/other/gals',
     'movie':'/media/twot/movie',
     'tv':'/media/twot/tv',
     'get':'/media/I/get',
+    'funny':'/media/I/get/funny',
+    'bg':'/media/I/get/bg',
     'know':'/home/ernie/file/g_know',
     'fambly':'/home/ernie/file/fambly',
     'dl':'/media/twot/dl',
@@ -87,12 +92,15 @@ EXTENSIONS.extend(MP3_EXTENSIONS)
 EXTENSIONS.extend(MOVIE_EXTENSIONS)
 EXTENSIONS.extend(DOC_EXTENSIONS)
 
-IMAGE_TARGETS=[TARGETS[n] for n in 'get home other know fambly myphoto'.split() if n in TARGETS]
+IMAGE_TARGETS=[TARGETS[n] for n in 'get funny bg home other gals know fambly myphoto'.split() if n in TARGETS]
 MP3_TARGETS=[TARGETS[n] for n in 'mp3albums mp3discography mp3spoken mp3'.split() if n in TARGETS]
 MOVIE_TARGETS=[TARGETS[n] for n in 'movie other'.split() if n in TARGETS]
 OTHERDIR_TARGETS=[TARGETS[n] for n in 'movie other myphoto'.split() if n in TARGETS]
 OTHERDIR_TARGETS.extend(MP3_TARGETS)
 DOC_TARGETS=[TARGETS[n] for n in 'ebook file home'.split() if n in TARGETS]
+
+from jinja2 import Environment, PackageLoader
+env = Environment(loader=PackageLoader('jinjaproj', 'jtemplates'))
 
 def has_movie(fp):
     files=os.listdir(fp)
@@ -140,19 +148,19 @@ def buttons(kind, fp):
     buttons=['<br>',]
     if kind=='image':
         for target in IMAGE_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
     elif kind in ['movie','moviedir']:
         for target in MOVIE_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
     elif kind in ['mp3','mp3dir']:
         for target in MP3_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
     elif kind=='otherdir':
         for target in OTHERDIR_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
     elif kind=='doc':
         for target in DOC_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
     return ''.join(buttons)
 
 def mkgolink(fp):
@@ -161,69 +169,28 @@ def mkgolink(fp):
     #res+=' <a href="/docs/%s">filelink</a>'%(urllib.quote(fp))
     return res
 
-def mkmvbutton(target, fp):
+def mkfpbutton(fp, cmd, target=None):
     idd=str(uuid.uuid4()).replace('-','_')
-    res='<div class="button" id="%s">%s</div>'%(idd, target.name)
     fpjs=fp.replace("\'","\\\'")
-    res+='''<script>
-    (function(){
-        var data={'target':'%s','fp':"%s"};
-        $("#%s").click(function(){
-            $("#%s").parent().append($('<div class="busy">Busy...</div>'));
-            $.ajax({
-                url:"/move",
-                data:data,
-                success:function(dat, textStatus, xhr){
-                    $("#%s").parent().find('.busy').remove()
-                    if (dat['res']!='success'){
-                        $("#%s").parent().append($('<div class="existed">Fail: '+dat['res']+'</div>'));
-                    }
-                    else{
-                        if (dat['hide']){
-                            $("#%s").parent().slideUp();
-                        }
-                    }
-                    }
-                });
-            });
-        }
-    )()
-    </script>'''%(target.dest, fpjs, idd, idd, idd, idd, idd)
-    return res
-
-def mkfpbutton(fp, cmd):
-    idd=str(uuid.uuid4()).replace('-','_')
-    res='<div class="button" id="%s">%s</div>'%(idd, cmd)
-    fpjs=fp.replace("\'","\\\'")
-    res+='''<script>
-    (function(){
-        var data={'fp':"%s"};
-        $("#%s").click(function(){
-            $("#%s").parent().append($('<div class="busy">Busy...</div>'));
-            $.ajax({
-                url:"/%s",
-                data:data,
-                success:function(dat, textStatus, xhr){
-                    $("#%s").parent().find('.busy').remove();
-                    if (dat['res']!='success'){
-                        $("#%s").parent().append($('<div class="fail">Fail: '+dat['res']+'</div>'));
-                    }
-                    else{
-                        if (dat['hide']){
-                            $("#%s").parent().slideUp();
-                        }
-                    }
-                    }
-                });
-            });
-        }
-    )()
-    </script>'''%(fpjs, idd, idd, cmd, idd, idd, idd)
-    return res
-
+    template=env.get_template('fpbutton.html')
+    vars={'idd':idd,'cmd':cmd,'fpjs':fpjs, 'target':target,}
+    return template.render(vars)
 
 def image(fp):
-    res='<img src="/images/%s"">'%(fp)
+    filter=readqs('filter')
+    if filter:
+        try:
+            im=Image.open(fp)
+            sz=im.size
+            if sz[0]>=800:
+                res='<img src="/images/%s""> %dx%d'%(fp, sz[0],sz[1])
+            else:
+                return None
+        except Exception, e:
+            res='<img src="/images/%s""> %s'%(fp, e)
+    else:
+        res='<img src="/images/%s"">'%(fp);
+    res+='<a style="target-new:tab;" target="_blank" href="/images/%s">%s</a>'%(fp,fp.rsplit('/',1)[-1])
     return res
 
 def mp3(fp):
@@ -256,7 +223,7 @@ def moviedir(fp):
     return res
 
 def otherdir(fp):
-    res='OTHERDIR<br>%s'%fp
+    res='OTHERDIR<br>%s (%d)'%(fp,len(os.listdir(fp)))
     return res
 
 def display(d, f):
@@ -266,23 +233,24 @@ def display(d, f):
     buttons=['<br>',]
     if kind =='image':
         res=image(fp)
-        #res+=buttons('image',fp)
-        for target in IMAGE_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
-        res+=''.join(buttons)
-        res+=mkfpbutton(fp, 'up')
+        if res:
+            #res+=buttons('image',fp)
+            for target in IMAGE_TARGETS:
+                buttons.append(mkfpbutton(fp, cmd='move', target=target))
+            res+=''.join(buttons)
+            res+=mkfpbutton(fp, 'up')
     elif kind =='mp3':
         res=mp3(fp)
         #res+=buttons('mp3',fp)
         for target in MP3_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
         res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
     elif kind == 'movie':
         res=movie(fp)
         #res+=buttons('movie',fp)
         for target in MOVIE_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
         res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
     elif kind=='moviedir':
@@ -290,7 +258,7 @@ def display(d, f):
         mm=has_movie(fp)
         #res+=buttons('moviedir',fp)
         for target in MOVIE_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
         res+=''.join(buttons)
         res+=mkfpbutton(mm, 'play')
         res+=mkgolink(fp)
@@ -298,7 +266,7 @@ def display(d, f):
         res=mp3dir(fp)
         #res+=buttons('mp3dir',fp)
         for target in MP3_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
         res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
         res+=mkgolink(fp)
@@ -306,14 +274,14 @@ def display(d, f):
         res=otherdir(fp)
         #res+=buttons('otherdir',fp)
         for target in OTHERDIR_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
         res+=''.join(buttons)
         res+=mkgolink(fp)
     elif kind=='doc':
         res=doc(fp)
         #res+=buttons('doc',fp)
         for target in DOC_TARGETS:
-            buttons.append(mkmvbutton(target, fp))
+            buttons.append(mkfpbutton(fp, cmd='move', target=target))
         res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
         res+=mkgolink(fp)
@@ -369,19 +337,25 @@ class images:
 
 class delete:
     def GET(self):
-        fp=readfp()
-        
-        if not getlock(fp):return False
-        print 'would remove %s'%fp
-        print fp
-        if os.path.exists(fp):
-            log('removed'+fp)
-            os.remove(fp)
-            unlock(fp)
-        res={'res':'success','fp':fp}
-        res['hide']=True
-        web.header("Content-Type", 'text/json')
-        return simplejson.dumps(res)
+        try:
+            fp=readfp()
+            if not getlock(fp):return False
+            print 'would remove %s'%fp
+            print fp
+            if os.path.exists(fp):
+                log('removed'+fp)
+                if os.path.isdir(fp):
+                    shutil.rmtree(fp)
+                else:
+                    os.remove(fp)
+                unlock(fp)
+            res={'res':'success','fp':fp}
+            res['hide']=True
+            web.header("Content-Type", 'text/json')
+            return simplejson.dumps(res)
+        except Exception, e:
+            print e
+            import ipdb;ipdb.set_trace();print 'ipdb!'
 
 class up:
     def GET(self):
@@ -434,6 +408,7 @@ class play:
         else:
             cmdres=subprocess.Popen(cmd)
         if cmdres:
+            return simplejson.dumps(None)
             import ipdb;ipdb.set_trace();print 'ipdb!'
         res={}
         res['res']='success'
@@ -461,7 +436,7 @@ class move:
                 shutil.move(fp, target)
                 res['res']='success'
                 log('moved'+fp+'to'+target)
-            except:
+            except Exception, e:
                 import traceback;traceback.print_exc()
                 import ipdb;ipdb.set_trace();print 'ipdb!'
                 log('failed move '+fp+'to'+target)
@@ -495,13 +470,14 @@ class test:
 class index:
     def GET(self):
         d=readqs('dir')
+        sizelimit=readqs('sizelimit')
         if not d:
             d='/media/I/dl'
         if not os.path.isdir(d):
             d='d:/dl'
         files=[]
         if os.path.isdir(d):
-            files=os.listdir(d)
+            files=sorted(os.listdir(d))
         res=[]
         did=0
         page=readqs('page')
@@ -509,8 +485,13 @@ class index:
             page=int(page)
         if not page:
             page=1
-        chunk=100
+        chunk=50
+        try:
+            import WindowsError
+        except:
+            WindowsError=None
         for f in files[(page-1)*chunk:page*chunk]:
+            if f[0]=='.':continue
             print f
             fp=os.path.join(d, f)
             if os.path.isdir(fp):
@@ -522,16 +503,23 @@ class index:
                 fn, ext=f.lower().rsplit('.',1)
                 if ext not in EXTENSIONS:
                     continue
-            try:
-                th=display(d, f)
-            except WindowsError:
-                print 'windowserror!',d,f
-                continue
-            except:
-
-                import traceback;traceback.print_exc()
-                import ipdb;ipdb.set_trace();print 'ipdb!'
-                print 'x'
+            if WindowsError:
+                try:
+                    th=display(d, f)
+                except WindowsError:
+                    print 'windowserror!',d,f
+                    continue
+                except:
+                    import traceback;traceback.print_exc()
+                    #import ipdb;ipdb.set_trace();print 'ipdb!'
+                    print 'x'
+            else:
+                try:
+                    th=display(d, f)
+                except:
+                    import traceback;traceback.print_exc()
+                    #import ipdb;ipdb.set_trace();print 'ipdb!'
+                    print 'x'
             if not th:
                 continue
             did+=1
@@ -545,8 +533,10 @@ class index:
         #import ipdb;ipdb.set_trace()
         if len(files)>page*chunk:
             qq=web.ctx.query.replace('page=%s'%page,'')
-            okres.append('<a href="%s%spage=%s">next page</a>'%(web.ctx.path, qq, str(int(page)+1)))
-            okres.insert(0, '<a href="%s%spage=%s">next page</a>'%(web.ctx.path, qq, str(int(page)+1)))
+            dest='<a href="%s%s&page=%s">next page</a>'%(web.ctx.path, qq, str(int(page)+1))
+            dest=dest.replace('&&','&')
+            okres.append(dest)
+            okres.insert(0, dest)
         return render.index(okres, d, DIRS)
 
 app=web.application(urls, globals(), autoreload=True)

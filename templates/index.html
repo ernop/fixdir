@@ -1,6 +1,5 @@
 $def with (res, d, DIRS)
-
-<head>
+<head><title>$:d</title>
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
 <script src="fixdl.js"></script>
 <style type="text/css">
@@ -14,6 +13,7 @@ $def with (res, d, DIRS)
     padding:10px;
     margin:4px;
     min-width:700px;
+    background:white;
     }
 .button{
     border:2px dotted blue;
@@ -23,9 +23,14 @@ $def with (res, d, DIRS)
     padding:5px;
     cursor:pointer;
     -webkit-text-select:none;
+    --moz-user-select: none;
+    -webkit-user-select: none;
+    }
+.button:hover{
+    background:#BBBBFF;
     }
 img {
-    max-height:300px;
+    max-height:350px;
     }
 .fixed{
     position:fixed;
@@ -47,7 +52,5 @@ $for rr in res:
 <div class="fixed">
 $for DD in DIRS:
     <br><a href="?dir=$:DD">$:DD</a>
-<div id="clearlocks">clear locks</div>
-
-</div>
+<!--<div id="clearlocks">clear locks</div></div>-->
 </body>
