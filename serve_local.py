@@ -20,6 +20,8 @@ urls=('/','index',
     '/play','play',
     '/clearlocks','clearlocks',
     '/aa','test',
+    '/ren','rename',
+    '/fixname','fixname',
 )
 
 
@@ -92,15 +94,29 @@ EXTENSIONS.extend(MP3_EXTENSIONS)
 EXTENSIONS.extend(MOVIE_EXTENSIONS)
 EXTENSIONS.extend(DOC_EXTENSIONS)
 
-IMAGE_TARGETS=[TARGETS[n] for n in 'get funny bg home other gals know fambly myphoto'.split() if n in TARGETS]
-MP3_TARGETS=[TARGETS[n] for n in 'mp3albums mp3discography mp3spoken mp3'.split() if n in TARGETS]
-MOVIE_TARGETS=[TARGETS[n] for n in 'movie other'.split() if n in TARGETS]
-OTHERDIR_TARGETS=[TARGETS[n] for n in 'movie other myphoto'.split() if n in TARGETS]
+IMAGE_TARGETS=[(TARGETS[n], 'move') for n in 'get funny bg home other gals know fambly myphoto'.split() if n in TARGETS]
+MP3_TARGETS=[(TARGETS[n],'move') for n in 'mp3albums mp3discography mp3spoken mp3'.split() if n in TARGETS]
+MOVIE_TARGETS=[(TARGETS[n],'move') for n in 'movie other'.split() if n in TARGETS]
+OTHERDIR_TARGETS=[(TARGETS[n],'move') for n in 'movie other myphoto'.split() if n in TARGETS]
 OTHERDIR_TARGETS.extend(MP3_TARGETS)
-DOC_TARGETS=[TARGETS[n] for n in 'ebook file home'.split() if n in TARGETS]
+DOC_TARGETS=[(TARGETS[n],'move') for n in 'ebook file home'.split() if n in TARGETS]
 
 from jinja2 import Environment, PackageLoader
 env = Environment(loader=PackageLoader('jinjaproj', 'jtemplates'))
+
+try:
+    import WindowsError
+    windows=True
+except:
+    WindowsError=None
+    windows=False
+    
+HEAD="<head></head><body>"
+TAIL="</body>"
+
+DIRS.extend(target_defs.values())
+DIRS=list(set([d for d in DIRS if os.path.isdir(d)]))
+DIRS.sort()
 
 def has_movie(fp):
     files=os.listdir(fp)
@@ -144,24 +160,24 @@ def getkind(fp):
         return 'doc'
     return False
 
-def buttons(kind, fp):
-    buttons=['<br>',]
-    if kind=='image':
-        for target in IMAGE_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
-    elif kind in ['movie','moviedir']:
-        for target in MOVIE_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
-    elif kind in ['mp3','mp3dir']:
-        for target in MP3_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
-    elif kind=='otherdir':
-        for target in OTHERDIR_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
-    elif kind=='doc':
-        for target in DOC_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
-    return ''.join(buttons)
+#~ def buttons(kind, fp):
+    #~ buttons=['<br>',]
+    #~ if kind=='image':
+        #~ for target in IMAGE_TARGETS:
+            #~ buttons.append(mkfpbutton(fp, cmd='move', target=target))
+    #~ elif kind in ['movie','moviedir']:
+        #~ for target in MOVIE_TARGETS:
+            #~ buttons.append(mkfpbutton(fp, cmd='move', target=target))
+    #~ elif kind in ['mp3','mp3dir']:
+        #~ for target in MP3_TARGETS:
+            #~ buttons.append(mkfpbutton(fp, cmd='move', target=target))
+    #~ elif kind=='otherdir':
+        #~ for target in OTHERDIR_TARGETS:
+            #~ buttons.append(mkfpbutton(fp, cmd='move', target=target))
+    #~ elif kind=='doc':
+        #~ for target in DOC_TARGETS:
+            #~ buttons.append(mkfpbutton(fp, cmd='move', target=target))
+    #~ return ''.join(buttons)
 
 def mkgolink(fp):
     """just go there."""
@@ -182,14 +198,14 @@ def image(fp):
         try:
             im=Image.open(fp)
             sz=im.size
-            if sz[0]>=800:
-                res='<img src="/images/%s""> %dx%d'%(fp, sz[0],sz[1])
+            if max(sz)>=1024:
+                res='<img src="/images/%s"> %dx%d'%(fp, sz[0],sz[1])
             else:
                 return None
         except Exception, e:
-            res='<img src="/images/%s""> %s'%(fp, e)
+            res='<img src="/images/%s"> %s'%(fp, e)
     else:
-        res='<img src="/images/%s"">'%(fp);
+        res='<img src="/images/%s">'%(fp);
     res+='<a style="target-new:tab;" target="_blank" href="/images/%s">%s</a>'%(fp,fp.rsplit('/',1)[-1])
     return res
 
@@ -234,54 +250,49 @@ def display(d, f):
     if kind =='image':
         res=image(fp)
         if res:
-            #res+=buttons('image',fp)
-            for target in IMAGE_TARGETS:
-                buttons.append(mkfpbutton(fp, cmd='move', target=target))
+            for target, cmd in IMAGE_TARGETS:
+                buttons.append(mkfpbutton(fp, cmd=cmd, target=target))
             res+=''.join(buttons)
             res+=mkfpbutton(fp, 'up')
+        else:
+            return None
     elif kind =='mp3':
         res=mp3(fp)
-        #res+=buttons('mp3',fp)
-        for target in MP3_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
+        for target,cmd in MP3_TARGETS:
+            buttons.append(mkfpbutton(fp, cmd=cmd, target=target))
         res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
     elif kind == 'movie':
         res=movie(fp)
-        #res+=buttons('movie',fp)
-        for target in MOVIE_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
+        for target,cmd in MOVIE_TARGETS:
+            buttons.append(mkfpbutton(fp, cmd=cmd, target=target))
         res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
     elif kind=='moviedir':
         res=moviedir(fp)
         mm=has_movie(fp)
-        #res+=buttons('moviedir',fp)
-        for target in MOVIE_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
+        for target,cmd in MOVIE_TARGETS:
+            buttons.append(mkfpbutton(fp, cmd=cmd, target=target))
         res+=''.join(buttons)
         res+=mkfpbutton(mm, 'play')
         res+=mkgolink(fp)
     elif kind=='mp3dir':
         res=mp3dir(fp)
-        #res+=buttons('mp3dir',fp)
-        for target in MP3_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
+        for target,cmd in MP3_TARGETS:
+            buttons.append(mkfpbutton(fp, cmd=cmd, target=target))
         res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
         res+=mkgolink(fp)
     elif kind=='otherdir':
         res=otherdir(fp)
-        #res+=buttons('otherdir',fp)
-        for target in OTHERDIR_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
+        for target,cmd in OTHERDIR_TARGETS:
+            buttons.append(mkfpbutton(fp, cmd=cmd, target=target))
         res+=''.join(buttons)
         res+=mkgolink(fp)
     elif kind=='doc':
         res=doc(fp)
-        #res+=buttons('doc',fp)
-        for target in DOC_TARGETS:
-            buttons.append(mkfpbutton(fp, cmd='move', target=target))
+        for target,cmd in DOC_TARGETS:
+            buttons.append(mkfpbutton(fp, cmd=cmd, target=target))
         res+=''.join(buttons)
         res+=mkfpbutton(fp, 'play')
         res+=mkgolink(fp)
@@ -290,9 +301,8 @@ def display(d, f):
         return res
     try:
         res+=mkfpbutton(fp, 'delete')
-    except:
-        import traceback;traceback.print_exc()
-        import ipdb;ipdb.set_trace();print 'ipdb!'
+    except Exception, e:
+        print e
     return res
 
 class docs:
@@ -382,6 +392,8 @@ def readqs(name):
         res=pts[name][0].encode('raw_unicode_escape').replace('\x00','/000')
     except KeyError:
         res=None
+    except Exception, e:
+        print e
     return res
 
 
@@ -409,7 +421,6 @@ class play:
             cmdres=subprocess.Popen(cmd)
         if cmdres:
             return simplejson.dumps(None)
-            import ipdb;ipdb.set_trace();print 'ipdb!'
         res={}
         res['res']='success'
         unlock(fp)
@@ -429,29 +440,36 @@ class move:
         fn=os.path.split(fp)[-1]
         targetdone=os.path.join(target, fn)
         res={'fp':fp,'target':target,}
+        identical=False
         if os.path.exists(targetdone):
-            res['res']='existed.'
-        else:
-            try:
-                shutil.move(fp, target)
-                res['res']='success'
-                log('moved'+fp+'to'+target)
-            except Exception, e:
-                import traceback;traceback.print_exc()
-                import ipdb;ipdb.set_trace();print 'ipdb!'
-                log('failed move '+fp+'to'+target)
-                res['res']='fail.'
+            import filecmp
+            if filecmp.cmp(targetdone,fp):
+                identical=True
+            else:
+                fn=str(uuid.uuid4())+'___'+fn
+                log('renamed to %s',fn)
+        assert os.path.isdir(target)
+        fulltarget=os.path.join(target,fn)
+        try:
+            shutil.move(fp, fulltarget)
+            res['res']='success'
+            log('moved'+fp+'to'+fulltarget)
+        except Exception, e:
+            print e
+            log('failed move '+fp+'to'+fulltarget)
+            res['res']='fail.'
         unlock(fp)
         res['hide']=True
         web.header("Content-Type", 'text/json')
         return simplejson.dumps(res)
 
-HEAD="<head></head><body>"
-TAIL="</body>"
+class rename:
+    def GET(self):
+        newname=uuid.uuid4()
 
-DIRS.extend(target_defs.values())
-DIRS=list(set([d for d in DIRS if os.path.isdir(d)]))
-DIRS.sort()
+class fixname:
+    def GET(self):
+        pass
 
 class clearlocks:
     def GET(self):
@@ -461,7 +479,6 @@ class clearlocks:
         res['res']=cmdres
         web.header("Content-Type", 'text/json')
         return simplejson.dumps(res)
-
 
 class test:
     def GET(self):
@@ -486,10 +503,6 @@ class index:
         if not page:
             page=1
         chunk=50
-        try:
-            import WindowsError
-        except:
-            WindowsError=None
         for f in files[(page-1)*chunk:page*chunk]:
             if f[0]=='.':continue
             print f
@@ -503,34 +516,36 @@ class index:
                 fn, ext=f.lower().rsplit('.',1)
                 if ext not in EXTENSIONS:
                     continue
-            if WindowsError:
+            if windows:
                 try:
                     th=display(d, f)
-                except WindowsError:
+                except WindowsError, e:
                     print 'windowserror!',d,f
+                    print e
                     continue
-                except:
-                    import traceback;traceback.print_exc()
-                    #import ipdb;ipdb.set_trace();print 'ipdb!'
-                    print 'x'
+                except Exception, e:
+                    print e
+                    continue
             else:
                 try:
                     th=display(d, f)
-                except:
-                    import traceback;traceback.print_exc()
-                    #import ipdb;ipdb.set_trace();print 'ipdb!'
-                    print 'x'
+                except Exception, e:
+                    print e
+                    continue
             if not th:
                 continue
             did+=1
             res.append(th)
         okres=[]
         for r in res:
-            ok=r.decode('utf8')
+            try:
+                ok=r.decode('utf8')
+            except Exception, e:
+                print e
+                import ipdb;ipdb.set_trace()
             if not ok:
                 continue
             okres.append(ok)
-        #import ipdb;ipdb.set_trace()
         if len(files)>page*chunk:
             qq=web.ctx.query.replace('page=%s'%page,'')
             dest='<a href="%s%s&page=%s">next page</a>'%(web.ctx.path, qq, str(int(page)+1))
