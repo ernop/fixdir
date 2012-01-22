@@ -15,6 +15,9 @@
                         if (dat['hide']){
                             $("#{{idd}}").parent().slideUp();
                         }
+                        if (dat['url']){
+                            $("#{{idd}}").parent().append($('<a href="'+dat['url']+'">'+dat['res']+'</a>'));
+                            }
                     }
                     }
                 });

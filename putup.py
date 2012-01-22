@@ -52,6 +52,7 @@ def putup(fp):
     headplusone=int(status['head'])+1
     status['head']=str(headplusone)
     newfn=str(headplusone)+ext
+    newfn=newfn.lower()
     src=fp
     local_dest=os.path.join('images',newfn)
     shutil.copy(src, local_dest)
@@ -68,6 +69,7 @@ def putup(fp):
         res['res']='success'
     else:
         res['res']=cmdres
+    res['newfn']=newfn
     putstatus(status)
     unlock('head')
     return res

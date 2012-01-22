@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import os, uuid, urlparse, simplejson, shutil, re, datetime, time, hashlib, urllib, shutil, subprocess
+import os, uuid, urlparse, simplejson, shutil, re, datetime, time, hashlib, urllib, shutil, subprocess, filecmp
 import web
 import Image
 
@@ -24,25 +24,26 @@ urls=('/','index',
     '/fixname','fixname',
 )
 
-
 target_defs={'mp3albums':'/media/I/mp3albums',
     'home':'/home/ernie',
     'mp3discography':'/media/I/mp3discography',
     'mp3spoken':'/media/I/mp3spoken',
     'mp3':'/media/I/mp3',
     'other':'/media/I/other',
-    'gals':'/media/I/other/gals',
+    'gals':'/media/I/gals',
     'movie':'/media/twot/movie',
     'tv':'/media/twot/tv',
     'get':'/media/I/get',
     'funny':'/media/I/get/funny',
     'bg':'/media/I/get/bg',
-    'know':'/home/ernie/file/g_know',
-    'fambly':'/home/ernie/file/fambly',
+    'g_know':'/home/ernie/file/pic/g_know',
+    'know':'/home/ernie/file/pic/know',
+    'fambly':'/home/ernie/file/pic/fambly',
     'dl':'/media/twot/dl',
-    'myphoto':'/home/ernie/myphoto',
+    'myphoto':'/home/ernie/file/pic/myphoto',
     'ebook':'/home/ernie/ebook',
     'saved':'/media/I/saved',
+    'doc':'/home/ernie/file/docs'
 }
 PLAYERS={'mp3':'rhythmbox', 'doc':'evince', 'movie':'vlc'}
 DIRS=['/media/I/dl','/media/I/get','/home/ernie/file',]
@@ -82,8 +83,7 @@ for a,b in target_defs.items():
     t=Target(name=a, dest=b)
     TARGETS[a]=t
 
-
-IMAGE_EXTENSIONS=['jpg','png','gif','jpeg','svg',]
+IMAGE_EXTENSIONS=['jpg','png','gif','jpeg','svg','bmp',]
 MP3_EXTENSIONS=['mp3',]
 MOVIE_EXTENSIONS=['avi','wmv','rm','mp4','avi','mkv','mpg','wmv']
 DOC_EXTENSIONS='html doc mobi txt rtf epub pdf htm'.split()
@@ -94,12 +94,13 @@ EXTENSIONS.extend(MP3_EXTENSIONS)
 EXTENSIONS.extend(MOVIE_EXTENSIONS)
 EXTENSIONS.extend(DOC_EXTENSIONS)
 
-IMAGE_TARGETS=[(TARGETS[n], 'move') for n in 'get funny bg home other gals know fambly myphoto'.split() if n in TARGETS]
+IMAGE_TARGETS=[(TARGETS[n], 'move') for n in 'get funny bg home other gals g_know know fambly myphoto'.split() if n in TARGETS]
 MP3_TARGETS=[(TARGETS[n],'move') for n in 'mp3albums mp3discography mp3spoken mp3'.split() if n in TARGETS]
 MOVIE_TARGETS=[(TARGETS[n],'move') for n in 'movie other'.split() if n in TARGETS]
 OTHERDIR_TARGETS=[(TARGETS[n],'move') for n in 'movie other myphoto'.split() if n in TARGETS]
 OTHERDIR_TARGETS.extend(MP3_TARGETS)
-DOC_TARGETS=[(TARGETS[n],'move') for n in 'ebook file home'.split() if n in TARGETS]
+OTHERDIR_TARGETS.append('doc')
+DOC_TARGETS=[(TARGETS[n],'move') for n in 'ebook file home doc'.split() if n in TARGETS]
 
 from jinja2 import Environment, PackageLoader
 env = Environment(loader=PackageLoader('jinjaproj', 'jtemplates'))
@@ -110,7 +111,7 @@ try:
 except:
     WindowsError=None
     windows=False
-    
+
 HEAD="<head></head><body>"
 TAIL="</body>"
 
@@ -160,25 +161,6 @@ def getkind(fp):
         return 'doc'
     return False
 
-#~ def buttons(kind, fp):
-    #~ buttons=['<br>',]
-    #~ if kind=='image':
-        #~ for target in IMAGE_TARGETS:
-            #~ buttons.append(mkfpbutton(fp, cmd='move', target=target))
-    #~ elif kind in ['movie','moviedir']:
-        #~ for target in MOVIE_TARGETS:
-            #~ buttons.append(mkfpbutton(fp, cmd='move', target=target))
-    #~ elif kind in ['mp3','mp3dir']:
-        #~ for target in MP3_TARGETS:
-            #~ buttons.append(mkfpbutton(fp, cmd='move', target=target))
-    #~ elif kind=='otherdir':
-        #~ for target in OTHERDIR_TARGETS:
-            #~ buttons.append(mkfpbutton(fp, cmd='move', target=target))
-    #~ elif kind=='doc':
-        #~ for target in DOC_TARGETS:
-            #~ buttons.append(mkfpbutton(fp, cmd='move', target=target))
-    #~ return ''.join(buttons)
-
 def mkgolink(fp):
     """just go there."""
     res='<a href="/?dir=%s">%s</a>'%(urllib.quote(fp),fp)
@@ -194,10 +176,10 @@ def mkfpbutton(fp, cmd, target=None):
 
 def image(fp):
     filter=readqs('filter')
+    im=Image.open(fp)
+    sz=im.size
     if filter:
         try:
-            im=Image.open(fp)
-            sz=im.size
             if max(sz)>=1024:
                 res='<img src="/images/%s"> %dx%d'%(fp, sz[0],sz[1])
             else:
@@ -205,8 +187,8 @@ def image(fp):
         except Exception, e:
             res='<img src="/images/%s"> %s'%(fp, e)
     else:
-        res='<img src="/images/%s">'%(fp);
-    res+='<a style="target-new:tab;" target="_blank" href="/images/%s">%s</a>'%(fp,fp.rsplit('/',1)[-1])
+        res='<img src="/images/%s"> '%(fp,)
+    res+='<a style="target-new:tab;" target="_blank" href="/images/%s">%s</a><br>%dx%d'%(fp,fp.rsplit('/',1)[-1], sz[0],sz[1])
     return res
 
 def mp3(fp):
@@ -223,8 +205,8 @@ def moviedir(fp):
             pass
 
 def doc(fp):
-    res='DOC<br>%s<br><a href="/docs/%s">%s</a>'%(fp,urllib.quote(fp),fp)
-    res+='<a href="/images/%s">img</a>'%(urllib.quote(fp))
+    res='DOC<br><a href="/docs/%s">%s</a>'%(urllib.quote(fp),fp)
+    res+=' as <a href="/images/%s">img</a>'%(urllib.quote(fp))
     return res
 
 def mp3dir(fp):
@@ -317,7 +299,9 @@ class docs:
             "txt":"text/plain",
             "htm":"text/html",
             "html":"text/html",
-            "ico":"image/x-icon",}
+            "ico":"image/x-icon",
+            "bmp":"image/bmp",
+        }
         if ext not in cType:
             print 'bad ext',ext
             return None
@@ -338,6 +322,7 @@ class images:
             "txt":"image/jpeg",
             "htm":"image/jpeg",
             "html":"image/jpeg",
+            "bmp":"image/bmp",
         }
         if ext not in cType:
             print 'bad ext',ext
@@ -370,17 +355,20 @@ class delete:
 class up:
     def GET(self):
         fp=readfp()
-        if not getlock(fp):return False
         web.header("Content-Type", 'text/json')
-        fn=os.path.split(fp)[-1]
         res={}
+        if not getlock(fp):
+            res['res']='fail'
+            return simplejson.dumps(res)
+        fn=os.path.split(fp)[-1]
         mkupres=putup(fp)
-        res['res']=mkupres
+        res.update(mkupres)
+        #res['res']=mkupres
+        res['url']='http://fuseki.net/putup/images/%s'%res['newfn']
         res['fp']=fp
         res['hide']=False
         unlock(fp)
         return simplejson.dumps(res)
-
 
 def readfp():
     return readqs('fp')
@@ -437,14 +425,15 @@ class move:
         print fp, target, pts
         slept=0
         if not getlock(fp):return False
-        fn=os.path.split(fp)[-1]
+        fn=os.path.split(fp)[-1].lower()
         targetdone=os.path.join(target, fn)
         res={'fp':fp,'target':target,}
         identical=False
         if os.path.exists(targetdone):
-            import filecmp
-            if filecmp.cmp(targetdone,fp):
+            if filecmp.cmp(targetdone,fp) or os.path.isdir(fp):
                 identical=True
+                res['res']='identical.'
+                #return simplejson.dumps(res)
             else:
                 fn=str(uuid.uuid4())+'___'+fn
                 log('renamed to %s',fn)
@@ -495,6 +484,7 @@ class index:
         files=[]
         if os.path.isdir(d):
             files=sorted(os.listdir(d))
+        files=[f for f in files if not f.startswith('.')]
         res=[]
         did=0
         page=readqs('page')
