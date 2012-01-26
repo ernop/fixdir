@@ -45,6 +45,23 @@ target_defs={'mp3albums':'/media/I/mp3albums',
     'saved':'/media/I/saved',
     'doc':'/home/ernie/file/docs'
 }
+
+KEYBOARD_SHORTCUTS={}
+KEYBOARD_OVERRIDES={'gals':'l',
+    'mp3':'3',
+    'mp3albums':'a',
+    'movie':'m',
+    'g_know':'w',
+    'myphoto':'p',
+    'fambly':'m',
+    }
+for k in target_defs.keys():
+    if k in KEYBOARD_OVERRIDES:
+        KEYBOARD_SHORTCUTS[k]=KEYBOARD_OVERRIDES[k]
+    else:
+        KEYBOARD_SHORTCUTS[k]=k[0]
+    #=={'get':'g',...}
+
 PLAYERS={'mp3':'rhythmbox', 'doc':'evince', 'movie':'vlc'}
 DIRS=['/media/I/dl','/media/I/get','/home/ernie/file',]
 
@@ -78,15 +95,22 @@ class Target:
         self.name=name
         self.dest=dest
 
+def mk_bold_name(txt):
+    if txt in KEYBOARD_SHORTCUTS:
+        return txt.replace(KEYBOARD_SHORTCUTS[txt],'<b>%s</b>'%KEYBOARD_SHORTCUTS[txt],1)
+    return txt
+
 TARGETS={}
 for a,b in target_defs.items():
     t=Target(name=a, dest=b)
+    t.bold_name=mk_bold_name(a)
     TARGETS[a]=t
 
+
 IMAGE_EXTENSIONS=['jpg','png','gif','jpeg','svg','bmp',]
-MP3_EXTENSIONS=['mp3',]
+MP3_EXTENSIONS=['mp3','wav','m4a',]
 MOVIE_EXTENSIONS=['avi','wmv','rm','mp4','avi','mkv','mpg','wmv']
-DOC_EXTENSIONS='html doc mobi txt rtf epub pdf htm'.split()
+DOC_EXTENSIONS='html doc mobi txt rtf epub pdf htm docx xlsx xls lit js'.split()
 
 EXTENSIONS=[]
 EXTENSIONS.extend(IMAGE_EXTENSIONS)
@@ -99,7 +123,7 @@ MP3_TARGETS=[(TARGETS[n],'move') for n in 'mp3albums mp3discography mp3spoken mp
 MOVIE_TARGETS=[(TARGETS[n],'move') for n in 'movie other'.split() if n in TARGETS]
 OTHERDIR_TARGETS=[(TARGETS[n],'move') for n in 'movie other myphoto'.split() if n in TARGETS]
 OTHERDIR_TARGETS.extend(MP3_TARGETS)
-OTHERDIR_TARGETS.append('doc')
+OTHERDIR_TARGETS.append((TARGETS['doc'],'move'))
 DOC_TARGETS=[(TARGETS[n],'move') for n in 'ebook file home doc'.split() if n in TARGETS]
 
 from jinja2 import Environment, PackageLoader
@@ -125,7 +149,7 @@ def has_movie(fp):
         if '.' not in f:
             continue
         ext=f.split('.')[-1]
-        if ext in MOVIE_EXTENSIONS:
+        if ext.lower() in MOVIE_EXTENSIONS:
             return os.path.join(fp, f)
 
 def has_mp3(fp):
@@ -134,7 +158,7 @@ def has_mp3(fp):
         if '.' not in f:
             continue
         ext=f.split('.')[-1]
-        if ext in MP3_EXTENSIONS:
+        if ext.lower() in MP3_EXTENSIONS:
             return True
 
 def getkind(fp):
@@ -151,13 +175,13 @@ def getkind(fp):
     if '.' not in fp:
         return False
     ext=fp.split('.')[-1].lower()
-    if ext in IMAGE_EXTENSIONS:
+    if ext.lower() in IMAGE_EXTENSIONS:
         return 'image'
-    if ext in MP3_EXTENSIONS:
+    if ext.lower() in MP3_EXTENSIONS:
         return 'mp3'
-    if ext in MOVIE_EXTENSIONS:
+    if ext.lower() in MOVIE_EXTENSIONS:
         return 'movie'
-    if ext in DOC_EXTENSIONS:
+    if ext.lower() in DOC_EXTENSIONS:
         return 'doc'
     return False
 
@@ -301,6 +325,7 @@ class docs:
             "html":"text/html",
             "ico":"image/x-icon",
             "bmp":"image/bmp",
+            'js':'text/plain',
         }
         if ext not in cType:
             print 'bad ext',ext
@@ -392,7 +417,7 @@ class play:
         if not getlock(fp):return False
         prefix=''
         ext=fp.rsplit('.')[-1]
-        if ext in PLAYERS:
+        if ext.lower() in PLAYERS:
             player=PLAYERS[ext]
         else:
             player=PLAYERS[kind]
@@ -442,10 +467,10 @@ class move:
         try:
             shutil.move(fp, fulltarget)
             res['res']='success'
-            log('moved'+fp+'to'+fulltarget)
+            log('moved '+fp+' ===> '+fulltarget)
         except Exception, e:
             print e
-            log('failed move '+fp+'to'+fulltarget)
+            log('failed move '+fp+'==>'+fulltarget)
             res['res']='fail.'
         unlock(fp)
         res['hide']=True
@@ -541,8 +566,9 @@ class index:
             dest='<a href="%s%s&page=%s">next page</a>'%(web.ctx.path, qq, str(int(page)+1))
             dest=dest.replace('&&','&')
             okres.append(dest)
-            okres.insert(0, dest)
-        return render.index(okres, d, DIRS)
+            #~ okres.insert(0, dest)
+        KEYBOARD_SHORTCUTS_DICT=[[a[0], a[1]] for a in KEYBOARD_SHORTCUTS.items()]
+        return render.index(okres, d, DIRS, KEYBOARD_SHORTCUTS_DICT)
 
 app=web.application(urls, globals(), autoreload=True)
 if __name__=="__main__":

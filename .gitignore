@@ -1,0 +1,7 @@
+*.pyc
+images
+jinja2
+HEAD
+head
+locks
+log.txt

@@ -1,9 +1,37 @@
-$def with (res, d, DIRS)
+$def with (res, d, DIRS, KEYBOARD_SHORTCUTS_DICT)
 <head><title>$:d</title>
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
-<!--<script src="fixdl.js"></script>-->
-<style type="text/css">
+<script src="fixdl.js"></script>
+<script>
+var info=$:KEYBOARD_SHORTCUTS_DICT;
+//var info=[['funny', 'f'], ['dl', 'd'], ['bg', 'b'], ['g_know', 'w'], ['gals', 'l'], ['tv', 't'], ['movie', 'm'], ['mp3albums', 'a'], ['mp3spoken', 'm'], ['ebook', 'e'], ['myphoto', 'p'], ['mp3discography', 'm'], ['mp3', '3'], ['doc', 'd'], ['home', 'h'], ['get', 'g'], ['other', 'o'], ['saved', 's'], ['fambly', 'f'], ['know', 'k']];
+var key2name={}
+for (ii=0;ii<info.length;ii++){
+    key2name[info[ii][1]]=info[ii][0];
+}
+var code2key={};
+code2key[71]='g';
+code2key[70]='f';
+code2key[66]='b';
+code2key[72]='h';
+code2key[79]='o';
+code2key[76]='l';
+code2key[87]='w';
+code2key[75]='k';
+code2key[80]='p';
+code2key[77]='m';
+\$(document).ready(function(){
+    \$(document).keydown(function(evt){
+        var key=code2key[evt.which];
+        //~ var key='g';
+        var name=key2name[key];
+        var but=\$(\$('.row')[0]).find('.'+name);
+        but.click()
+    });
+})
 
+</script>
+<style type="text/css">
 .row{
     display:inline-block;
     float:left;
@@ -15,7 +43,7 @@ $def with (res, d, DIRS)
     min-width:700px;
     background:white;
     }
-    .row:hover{
+.row:hover{
     background:#EFEFEF;
 }
 .button{
@@ -55,5 +83,5 @@ $for rr in res:
 <div class="fixed">
 $for DD in DIRS:
     <br><a href="?dir=$:DD">$:DD</a>
-<!--<div id="clearlocks">clear locks</div></div>-->
+
 </body>

@@ -1,4 +1,4 @@
-<div class="button" id="{{idd}}">{% if target %}{{target.name}}{% else %}{{cmd}}{% endif %}</div><script>
+<div class="button {{target.name}}" id="{{idd}}">{% if target %}{{target.bold_name}}{% else %}{{cmd}}{% endif %}</div><script>
     (function(){
         var data={ {% if target %}'target':'{{target.dest}}',{%endif %}'fp':"{{fpjs}}"};
         $("#{{idd}}").click(function(){
@@ -13,7 +13,7 @@
                     }
                     else{
                         if (dat['hide']){
-                            $("#{{idd}}").parent().slideUp();
+                            $("#{{idd}}").parent().slideUp(function(){$(this).remove()});
                         }
                         if (dat['url']){
                             $("#{{idd}}").parent().append($('<a href="'+dat['url']+'">'+dat['res']+'</a>'));
