@@ -54,6 +54,8 @@ KEYBOARD_OVERRIDES={'gals':'l',
     'g_know':'w',
     'myphoto':'p',
     'fambly':'m',
+    'mp3discography':'c',
+    'mp3spoken':'s',
     }
 for k in target_defs.keys():
     if k in KEYBOARD_OVERRIDES:
@@ -460,7 +462,9 @@ class move:
                 res['res']='identical.'
                 #return simplejson.dumps(res)
             else:
-                fn=str(uuid.uuid4())+'___'+fn
+                now=datetime.datetime.now()
+                fn,ext=os.path.splitext(fn)
+                fn=str('%04d-%02d-%02d-%02d-%02d-%02d____%s____%s%s'%(now.year, now.month, now.day, now.hour, now.minute, now.second, fn, uuid.uuid4(), ext))
                 log('renamed to %s',fn)
         assert os.path.isdir(target)
         fulltarget=os.path.join(target,fn)
